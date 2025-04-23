@@ -7,6 +7,16 @@ interface RequestBody {
   topK?: number;
 }
 
+// Define the interface for the match object to fix the 'any' type error
+interface PineconeMatch {
+  id: string;
+  score: number;
+  metadata: {
+    question: string;
+    answer: string;
+  };
+}
+
 // Define CORS headers
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -66,17 +76,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Return the best matching answer
-    const bestMatch = matches[0];
-    const metadata = bestMatch.metadata as { question: string; answer: string };
+    const bestMatch = matches[0] as PineconeMatch;
+    const metadata = bestMatch.metadata;
     
     return NextResponse.json({
       question,
       answer: metadata.answer,
       confidence: bestMatch.score,
-      similarQuestions: matches.map(match => ({
-        question: (match.metadata as { question: string }).question,
-        score: match.score
-      }))
+      similarQuestions: matches.map(match => {
+        const typedMatch = match as PineconeMatch;
+        return {
+          question: typedMatch.metadata.question,
+          score: typedMatch.score
+        };
+      })
     }, { headers: corsHeaders });
 
   } catch (error) {
