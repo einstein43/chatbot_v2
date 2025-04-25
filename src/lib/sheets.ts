@@ -13,25 +13,41 @@ import * as path from 'path';
 export interface QAPair {
   question: string;
   answer: string;
+  generalSources?: string[];  // Optional array of general information sources
 }
 
 /**
- * Parses Q&A content from a Google Doc
- * Expected format may be either:
+ * Parses Q&A content and general sources from a Google Doc
+ * Expected formats:
  * Q: Question 1
  * A: Answer 1
+ * G: General information source 1
+ * G: General information source 2
  * 
  * Or with the question and answer on the same line:
  * Q: Question 1♂ A: Answer 1
  * 
  * @param content The document content as string
- * @returns Array of QA pairs
+ * @returns Array of QA pairs with general sources
  */
 function parseQAFormat(content: string): QAPair[] {
   const qaPairs: QAPair[] = [];
+  const generalSources: string[] = [];
   
   // Split the content by lines and process
   const lines = content.split('\n').map(line => line.trim()).filter(Boolean);
+  
+  // First, collect all general sources
+  for (const line of lines) {
+    if (line.startsWith('G:')) {
+      const generalSource = line.substring(2).trim();
+      if (generalSource) {
+        generalSources.push(generalSource);
+      }
+    }
+  }
+  
+  console.log(`Found ${generalSources.length} general sources`);
   
   for (const line of lines) {
     // Check if the line contains both Q: and A: on the same line
@@ -45,7 +61,11 @@ function parseQAFormat(content: string): QAPair[] {
         // Remove any special characters (like ♂) between Q and A
         question = question.replace(/[^\w\s.,?!;:()'"-]/g, ' ').trim();
         
-        qaPairs.push({ question, answer });
+        qaPairs.push({ 
+          question, 
+          answer,
+          generalSources: [...generalSources] // Include all general sources with each QA pair
+        });
       }
     } else if (line.startsWith('Q:')) {
       // Old logic for handling Q: and A: on separate lines
@@ -54,14 +74,18 @@ function parseQAFormat(content: string): QAPair[] {
       const nextIndex = lines.indexOf(line) + 1;
       if (nextIndex < lines.length && lines[nextIndex].startsWith('A:')) {
         const answer = lines[nextIndex].substring(2).trim();
-        qaPairs.push({ question, answer });
+        qaPairs.push({ 
+          question, 
+          answer,
+          generalSources: [...generalSources] // Include all general sources with each QA pair
+        });
       } else {
         console.warn(`Question without answer: ${question}`);
       }
     }
   }
   
-  console.log(`Found ${qaPairs.length} valid Q&A pairs`);
+  console.log(`Found ${qaPairs.length} valid Q&A pairs with general sources`);
   return qaPairs;
 }
 

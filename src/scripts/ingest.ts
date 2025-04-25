@@ -9,6 +9,7 @@ import { index } from '../lib/pinecone';
 interface QAPair {
   question: string;
   answer: string;
+  generalSources?: string[];
 }
 
 /**
@@ -36,13 +37,21 @@ export async function uploadQAPairsToPinecone(qaPairs: QAPair[]) {
           // Create a unique ID for each vector
           const id = `q${counter++}`;
           
+          // Create metadata including general sources if available
+          const metadata: any = {
+            question: pair.question,
+            answer: pair.answer
+          };
+          
+          // Add general sources to metadata if they exist
+          if (pair.generalSources && pair.generalSources.length > 0) {
+            metadata.generalSources = pair.generalSources;
+          }
+          
           return {
             id,
             values: embedding,
-            metadata: {
-              question: pair.question,
-              answer: pair.answer
-            }
+            metadata
           };
         })
       );

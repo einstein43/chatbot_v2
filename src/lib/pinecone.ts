@@ -37,3 +37,26 @@ export async function querySimilarQuestions(embedding: number[], topK: number = 
     throw new Error('Failed to query Pinecone');
   }
 }
+
+/**
+ * Queries Pinecone for general sources
+ * @param embedding The embedding vector to search for
+ * @param topK Number of most similar vectors to return
+ * @returns Promise with the query results for general sources
+ */
+export async function queryGeneralSources(embedding: number[], topK: number = 5) {
+  try {
+    // Query specifically for general_source type entries
+    const results = await index.query({
+      vector: embedding,
+      topK,
+      includeMetadata: true,
+      filter: { type: { $eq: 'general_source' } },
+    });
+
+    return results.matches;
+  } catch (error) {
+    console.error('Error querying Pinecone for general sources:', error);
+    throw new Error('Failed to query Pinecone for general sources');
+  }
+}
