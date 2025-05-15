@@ -9,7 +9,7 @@ if (!process.env.AZURE_OPENAI_ENDPOINT) {
   throw new Error('AZURE_OPENAI_ENDPOINT environment variable is not set');
 }
 
-// Configure a single OpenAI client for GPT-4
+// Configure a single OpenAI client for gpt-4o-mini
 export const openai = new OpenAI({
   apiKey: process.env.AZURE_GPT4_API_KEY || process.env.AZURE_OPENAI_API_KEY,
   baseURL: process.env.AZURE_GPT4_ENDPOINT || process.env.AZURE_OPENAI_ENDPOINT,
@@ -24,10 +24,10 @@ export const EMBEDDING_MODELS = {
 };
 
 export const COMPLETION_MODELS = {
-  // All models use GPT-4
-  FAST: process.env.AZURE_COMPLETION_DEPLOYMENT_STANDARD || 'gpt-4',
-  STANDARD: process.env.AZURE_COMPLETION_DEPLOYMENT_STANDARD || 'gpt-4',
-  PRECISE: process.env.AZURE_COMPLETION_DEPLOYMENT_PRECISE || 'gpt-4'
+  // All models use gpt-4o-mini
+  FAST: process.env.AZURE_COMPLETION_DEPLOYMENT_STANDARD || 'gpt-4o-minio-mini',
+  STANDARD: process.env.AZURE_COMPLETION_DEPLOYMENT_STANDARD || 'gpt-4o-mini',
+  PRECISE: process.env.AZURE_COMPLETION_DEPLOYMENT_PRECISE || 'gpt-4o-mini'
 };
 
 // Model selection thresholds
@@ -111,7 +111,7 @@ function selectCompletionModel(
   confidence?: number, 
   contextSize?: number
 ): string {
-  // Always use GPT-4 regardless of the input parameters
+  // Always use gpt-4o-mini regardless of the input parameters
   console.log(`Using ${COMPLETION_MODELS.STANDARD} for all questions`);
   return COMPLETION_MODELS.STANDARD;
 }
@@ -193,11 +193,11 @@ export async function generateAnswer(
       });
     }
 
-    // Always use GPT-4
+    // Always use gpt-4o-mini
     const model = forceModel || COMPLETION_MODELS.STANDARD;
     console.log(`Using completion model: ${model} for question`);
     
-    // Always use the GPT-4 endpoint
+    // Always use the gpt-4o-mini endpoint
     const endpoint = process.env.AZURE_GPT4_ENDPOINT || '';
     const apiKey = process.env.AZURE_GPT4_API_KEY || process.env.AZURE_OPENAI_API_KEY || '';
     const apiVersion = process.env.AZURE_GPT4_API_VERSION || '2025-01-01-preview';
@@ -273,11 +273,11 @@ export async function generateAnswerFromGeneralSources(
       systemPrompt += " If you don't know the answer based on the provided context, just say you don't have enough information to answer accurately.";
     }
 
-    // Always use GPT-4
+    // Always use gpt-4o-mini
     const model = forceModel || COMPLETION_MODELS.STANDARD;
     console.log(`Using completion model: ${model} for question with general sources`);
     
-    // Always use the GPT-4 endpoint
+    // Always use the gpt-4o-mini endpoint
     const endpoint = process.env.AZURE_GPT4_ENDPOINT || '';
     const apiKey = process.env.AZURE_GPT4_API_KEY || process.env.AZURE_OPENAI_API_KEY || '';
     const apiVersion = process.env.AZURE_GPT4_API_VERSION || '2025-01-01-preview';
