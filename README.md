@@ -1,8 +1,8 @@
-# Serverless QA API with OpenAI Embeddings and Pinecone Vector DB
+# Serverless QA API with Azure OpenAI Embeddings and Pinecone Vector DB
 
 A serverless API built on Vercel that:
 - Receives a question from Voiceflow
-- Embeds the question using OpenAI
+- Embeds the question using Azure OpenAI
 - Queries Pinecone Serverless for the most similar question
 - Returns the matching answer
 
@@ -11,8 +11,8 @@ A serverless API built on Vercel that:
 - **Vercel**: For serverless deployment
 - **Next.js**: For API routes and serverless functions
 - **Pinecone Serverless**: Vector database for semantic search
-- **OpenAI Embeddings**: For creating vector representations of questions
-- **Google Sheets** (Optional): As a data source for QA pairs
+- **Azure OpenAI**: For creating vector representations of questions and generating answers
+- **Google Docs** (Optional): As a data source for QA pairs
 
 ## Getting Started
 
@@ -20,38 +20,52 @@ A serverless API built on Vercel that:
 
 - Node.js 18+ and npm
 - Vercel account for deployment
-- OpenAI API key
+- Azure OpenAI resource with appropriate deployments
 - Pinecone account with a serverless index
-- (Optional) Google service account with Sheets API access
+- (Optional) Google service account with Docs API access
 
 ### Environment Setup
 
 1. Clone this repository
 2. Install dependencies: `npm install`
-3. Copy `.env.local` to create your environment variables:
+3. Copy `.env.local.example` to create your own `.env.local` file:
 
 ```
-# OpenAI API Keys
-OPENAI_API_KEY=your_openai_api_key
+# Azure OpenAI Configuration
+AZURE_OPENAI_API_KEY=your_azure_openai_api_key
+AZURE_OPENAI_ENDPOINT=https://your-resource-name.openai.azure.com
+AZURE_OPENAI_API_VERSION=2023-12-01-preview
+
+# Azure OpenAI Deployment Names
+AZURE_EMBEDDING_DEPLOYMENT=embedding-deployment-name
+AZURE_EMBEDDING_DEPLOYMENT_LARGE=embedding-large-deployment-name
+AZURE_COMPLETION_DEPLOYMENT_FAST=gpt-35-turbo-deployment-name
+AZURE_COMPLETION_DEPLOYMENT_STANDARD=gpt-4-deployment-name
+AZURE_COMPLETION_DEPLOYMENT_PRECISE=gpt-4-precise-deployment-name
 
 # Pinecone Configuration
-PINECONE_API_KEY=your_pinecone_api_key 
-PINECONE_ENVIRONMENT=your_pinecone_environment
+PINECONE_API_KEY=your_pinecone_api_key
 PINECONE_INDEX=your_pinecone_index
 
-# Optional: Google Sheets API
-# GOOGLE_SHEETS_ID=your_google_sheet_id
-# GOOGLE_SHEETS_PRIVATE_KEY=your_google_sheets_private_key
-# GOOGLE_SHEETS_CLIENT_EMAIL=your_google_sheets_client_email
+# Optional: Google Docs API
+GOOGLE_DOCS_ID=your_google_doc_id
 ```
+
+### Azure OpenAI Setup
+
+1. Create an Azure OpenAI resource in the [Azure Portal](https://portal.azure.com)
+2. Deploy the following models in your Azure OpenAI resource:
+   - **Embedding models**: Create deployments for `text-embedding-ada-002`
+   - **Completion models**: Create deployments for `gpt-4`
+3. Note the deployment names, endpoint, and API key to use in your `.env.local` file
 
 ### Pinecone Setup
 
 1. Create a Pinecone account at https://www.pinecone.io/
 2. Create a new Serverless index with:
-   - Dimensions: 1536 (for OpenAI's text-embedding-3-small model)
+   - Dimensions: 1536 (for Azure OpenAI's text-embedding-3-small model)
    - Metric: cosine
-3. Save your API key, environment and index name in `.env.local`
+3. Save your API key and index name in `.env.local`
 
 ### Data Ingestion
 
@@ -61,12 +75,12 @@ Before using the API, you need to populate your Pinecone index with question-ans
 2. Uncomment the example code at the bottom of the file
 3. Run the script with TypeScript: `npx ts-node src/scripts/ingest.ts`
 
-Alternatively, if you want to use Google Sheets as a data source:
+Alternatively, if you want to use Google Docs as a data source:
 
-1. Install the Google Sheets package: `npm install google-spreadsheet`
-2. Uncomment the Google Sheets code in `src/lib/sheets.ts`
-3. Add your Google Sheets credentials to `.env.local`
-4. Create a script that combines the Sheets loading with Pinecone ingestion
+1. Install the Google Docs package: `npm install google-docs`
+2. Uncomment the Google Docs code in `src/lib/docs.ts`
+3. Add your Google Docs credentials to `.env.local`
+4. Create a script that combines the Docs loading with Pinecone ingestion
 
 ## API Usage
 

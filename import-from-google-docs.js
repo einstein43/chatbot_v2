@@ -5,13 +5,17 @@ require('dotenv').config({ path: '.env.local' });
 const { google } = require('googleapis');
 const fs = require('fs');
 const path = require('path');
-const OpenAI = require('openai');
+const fetch = require('node-fetch');
 const { Pinecone } = require('@pinecone-database/pinecone');
 
-// Set up OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Check for required Azure OpenAI environment variables
+if (!process.env.AZURE_OPENAI_API_KEY) {
+  throw new Error('AZURE_OPENAI_API_KEY environment variable is not set');
+}
+
+if (!process.env.AZURE_OPENAI_ENDPOINT) {
+  throw new Error('AZURE_OPENAI_ENDPOINT environment variable is not set');
+}
 
 // Set up Pinecone client
 const pinecone = new Pinecone({
@@ -22,16 +26,47 @@ const pinecone = new Pinecone({
 const index = pinecone.Index(process.env.PINECONE_INDEX);
 
 /**
- * Generates embeddings for text using OpenAI
+ * Generates embeddings for text using Azure OpenAI
  */
 async function getEmbedding(text) {
   try {
-    const response = await openai.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: text,
+    // Use the configured embedding model from environment variables or default to this name
+    const model = process.env.AZURE_EMBEDDING_DEPLOYMENT || 'text-embedding-ada-002';
+    console.log(`Using embedding model: ${model}`);
+    
+    // Azure OpenAI requires a specific URL format
+    const endpoint = process.env.AZURE_OPENAI_ENDPOINT || '';
+    const apiKey = process.env.AZURE_OPENAI_API_KEY || '';
+    const apiVersion = process.env.AZURE_OPENAI_API_VERSION || '2023-05-15';
+    
+    // Remove trailing slash from endpoint if present
+    const baseUrl = endpoint.endsWith('/') ? endpoint.slice(0, -1) : endpoint;
+    
+    // Format the URL according to Azure OpenAI requirements
+    const url = `${baseUrl}/openai/deployments/${model}/embeddings?api-version=${apiVersion}`;
+    
+    console.log(`Calling Azure OpenAI embeddings endpoint: ${url}`);
+    
+    // Make a direct POST request to the Azure API
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': apiKey
+      },
+      body: JSON.stringify({
+        input: text
+      })
     });
-
-    return response.data[0].embedding;
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Azure OpenAI API error:', errorData);
+      throw new Error(`Azure OpenAI API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return data.data[0].embedding;
   } catch (error) {
     console.error('Error generating embedding:', error);
     throw new Error('Failed to generate embedding');

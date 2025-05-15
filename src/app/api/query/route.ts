@@ -25,7 +25,7 @@ const corsHeaders = {
 };
 
 // Define confidence threshold for using OpenAI
-const CONFIDENCE_THRESHOLD = 0.80;
+const CONFIDENCE_THRESHOLD = 0.90;
 
 /**
  * Handle preflight OPTIONS request for CORS
@@ -158,6 +158,7 @@ export async function POST(request: NextRequest) {
             const typedMatch = match as PineconeMatch;
             return {
               question: typedMatch.metadata.question,
+              answer: typedMatch.metadata.answer,
               score: typedMatch.score
             };
           }),

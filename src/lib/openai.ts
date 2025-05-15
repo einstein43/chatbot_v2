@@ -1,28 +1,37 @@
 import OpenAI from 'openai';
 
-if (!process.env.OPENAI_API_KEY) {
-  throw new Error('OPENAI_API_KEY environment variable is not set');
+// Check for required Azure OpenAI environment variables
+if (!process.env.AZURE_OPENAI_API_KEY) {
+  throw new Error('AZURE_OPENAI_API_KEY environment variable is not set');
 }
 
+if (!process.env.AZURE_OPENAI_ENDPOINT) {
+  throw new Error('AZURE_OPENAI_ENDPOINT environment variable is not set');
+}
+
+// Configure a single OpenAI client for GPT-4
 export const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.AZURE_GPT4_API_KEY || process.env.AZURE_OPENAI_API_KEY,
+  baseURL: process.env.AZURE_GPT4_ENDPOINT || process.env.AZURE_OPENAI_ENDPOINT,
+  defaultQuery: { 'api-version': process.env.AZURE_GPT4_API_VERSION || '2025-01-01-preview' },
+  defaultHeaders: { 'api-key': process.env.AZURE_GPT4_API_KEY || process.env.AZURE_OPENAI_API_KEY }
 });
 
-// Model selection constants
+// Azure OpenAI uses deployment names instead of model names
 export const EMBEDDING_MODELS = {
-  DEFAULT: 'text-embedding-3-small',
-  LARGE: 'text-embedding-3-large'
+  DEFAULT: process.env.AZURE_EMBEDDING_DEPLOYMENT || 'text-embedding-ada-002',
+  LARGE: process.env.AZURE_EMBEDDING_DEPLOYMENT_LARGE || 'text-embedding-ada-002'
 };
 
 export const COMPLETION_MODELS = {
-  FAST: 'gpt-3.5-turbo',
-  STANDARD: 'gpt-4-turbo',
-  PRECISE: 'gpt-4'
+  // All models use GPT-4
+  FAST: process.env.AZURE_COMPLETION_DEPLOYMENT_STANDARD || 'gpt-4',
+  STANDARD: process.env.AZURE_COMPLETION_DEPLOYMENT_STANDARD || 'gpt-4',
+  PRECISE: process.env.AZURE_COMPLETION_DEPLOYMENT_PRECISE || 'gpt-4'
 };
 
 // Model selection thresholds
 const QUESTION_COMPLEXITY_THRESHOLD = 50; // Character count for complex questions
-const CONFIDENCE_THRESHOLD_FOR_GPT4 = 0.70; // Below this confidence, use GPT-4
 
 // Interface for OpenAI API errors
 interface OpenAIError {
@@ -58,7 +67,7 @@ export function assessQuestionComplexity(question: string): {
   }
   
   // Check for complex logical operators
-  if (question.match(/\b(and|or|but|however|not|except|unless)\b/gi)) {
+  if (question.match(/\b(en|of|maar|alhoewel|niet|behalve|tenzij)\b/gi)) {
     factors.push('logical operators');
   }
   
@@ -102,36 +111,13 @@ function selectCompletionModel(
   confidence?: number, 
   contextSize?: number
 ): string {
-  const { isComplex, factors } = assessQuestionComplexity(question);
-  
-  // Log the factors affecting model selection
-  console.log(`Question complexity assessment: ${isComplex ? 'complex' : 'simple'}, factors: ${factors.join(', ')}`);
-  
-  // For very low confidence, always use the most powerful model
-  if (confidence !== undefined && confidence < CONFIDENCE_THRESHOLD_FOR_GPT4) {
-    console.log(`Using ${COMPLETION_MODELS.STANDARD} due to low confidence: ${confidence}`);
-    return COMPLETION_MODELS.STANDARD;
-  }
-  
-  // For large context, use a more powerful model
-  if (contextSize !== undefined && contextSize > 5) {
-    console.log(`Using ${COMPLETION_MODELS.STANDARD} due to large context size: ${contextSize}`);
-    return COMPLETION_MODELS.STANDARD;
-  }
-  
-  // Default selection based on complexity
-  if (isComplex) {
-    console.log(`Using ${COMPLETION_MODELS.STANDARD} due to question complexity`);
-    return COMPLETION_MODELS.STANDARD;
-  }
-  
-  // Use the fastest model for simple questions with high confidence
-  console.log(`Using ${COMPLETION_MODELS.FAST} for simple question`);
-  return COMPLETION_MODELS.FAST;
+  // Always use GPT-4 regardless of the input parameters
+  console.log(`Using ${COMPLETION_MODELS.STANDARD} for all questions`);
+  return COMPLETION_MODELS.STANDARD;
 }
 
 /**
- * Generates embeddings for the provided text using OpenAI's embeddings API
+ * Generates embeddings for the provided text using Azure OpenAI embeddings API
  * @param text The text to create embeddings for
  * @returns Promise with the embedding vector
  */
@@ -141,12 +127,39 @@ export async function getEmbedding(text: string): Promise<number[]> {
     const model = selectEmbeddingModel(text);
     console.log(`Using embedding model: ${model}`);
     
-    const response = await openai.embeddings.create({
-      model,
-      input: text,
+    // Azure OpenAI requires a specific URL format
+    const endpoint = process.env.AZURE_OPENAI_ENDPOINT || '';
+    const apiKey = process.env.AZURE_OPENAI_API_KEY || '';
+    const apiVersion = process.env.AZURE_OPENAI_API_VERSION || '2025-01-01-preview';
+    
+    // Remove trailing slash from endpoint if present
+    const baseUrl = endpoint.endsWith('/') ? endpoint.slice(0, -1) : endpoint;
+    
+    // Format the URL according to Azure OpenAI requirements
+    const url = `${baseUrl}/openai/deployments/${model}/embeddings?api-version=${apiVersion}`;
+    
+    console.log(`Calling Azure OpenAI embeddings endpoint: ${url}`);
+    
+    // Make a direct POST request to the Azure API
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': apiKey
+      },
+      body: JSON.stringify({
+        input: text
+      })
     });
-
-    return response.data[0].embedding;
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Azure OpenAI API error:', errorData);
+      throw new Error(`Azure OpenAI API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return data.data[0].embedding;
   } catch (error) {
     console.error('Error generating embedding:', error);
     throw new Error('Failed to generate embedding');
@@ -154,7 +167,7 @@ export async function getEmbedding(text: string): Promise<number[]> {
 }
 
 /**
- * Generates an answer using OpenAI's ChatGPT based on the question and context
+ * Generates an answer using Azure OpenAI ChatGPT based on the question and context
  * @param question The user's question
  * @param context Optional context from similar questions/answers in the database
  * @param forceModel Optional parameter to force a specific model
@@ -180,44 +193,59 @@ export async function generateAnswer(
       });
     }
 
-    // Select the appropriate model based on complexity, confidence, and context size
-    const model = forceModel || selectCompletionModel(
-      question, 
-      context && context.length > 0 ? context[0].score : undefined,
-      context?.length
-    );
-
+    // Always use GPT-4
+    const model = forceModel || COMPLETION_MODELS.STANDARD;
     console.log(`Using completion model: ${model} for question`);
-
-    const response = await openai.chat.completions.create({
-      model,
+    
+    // Always use the GPT-4 endpoint
+    const endpoint = process.env.AZURE_GPT4_ENDPOINT || '';
+    const apiKey = process.env.AZURE_GPT4_API_KEY || process.env.AZURE_OPENAI_API_KEY || '';
+    const apiVersion = process.env.AZURE_GPT4_API_VERSION || '2025-01-01-preview';
+    
+    // Remove trailing slash from endpoint if present
+    const baseUrl = endpoint.endsWith('/') ? endpoint.slice(0, -1) : endpoint;
+    
+    // Format the URL according to Azure OpenAI requirements for chat completions
+    const url = `${baseUrl}/openai/deployments/${model}/chat/completions?api-version=${apiVersion}`;
+    
+    console.log(`Calling Azure OpenAI chat completions endpoint: ${url}`);
+    
+    // Prepare the request body
+    const requestBody = {
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: question }
       ],
       temperature: 0.7,
       max_tokens: 500
+    };
+    
+    // Make a direct POST request to the Azure API
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': apiKey
+      },
+      body: JSON.stringify(requestBody)
     });
-
-    return response.choices[0].message.content || "I'm sorry, I couldn't generate an answer.";
-  } catch (error: unknown) {
-    console.error('Error generating answer with OpenAI:', error);
     
-    // Cast error to OpenAIError type to access its properties
-    const apiError = error as OpenAIError;
-    
-    // If the error is due to the model (e.g., token limit), fallback to a simpler model
-    if (apiError.response?.status === 400 && apiError.response?.data?.error?.code === 'context_length_exceeded') {
-      console.log('Falling back to a simpler model due to context length limitations');
-      return generateAnswer(question, context, COMPLETION_MODELS.FAST);
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Azure OpenAI API error:', errorData);
+      throw new Error(`Azure OpenAI API error: ${response.status} ${response.statusText}`);
     }
     
+    const data = await response.json();
+    return data.choices[0].message.content || "I'm sorry, I couldn't generate an answer.";
+  } catch (error: unknown) {
+    console.error('Error generating answer with OpenAI:', error);
     throw new Error('Failed to generate answer with OpenAI');
   }
 }
 
 /**
- * Generates an answer using OpenAI's ChatGPT based on the question and general sources as context
+ * Generates an answer using Azure OpenAI ChatGPT based on the question and general sources as context
  * @param question The user's question
  * @param generalSources Array of general sources from Pinecone to use as context
  * @param forceModel Optional parameter to force a specific model
@@ -245,38 +273,53 @@ export async function generateAnswerFromGeneralSources(
       systemPrompt += " If you don't know the answer based on the provided context, just say you don't have enough information to answer accurately.";
     }
 
-    // Select the appropriate model based on complexity, confidence, and context size
-    const model = forceModel || selectCompletionModel(
-      question, 
-      generalSources && generalSources.length > 0 ? generalSources[0].score : undefined,
-      generalSources?.length
-    );
-
+    // Always use GPT-4
+    const model = forceModel || COMPLETION_MODELS.STANDARD;
     console.log(`Using completion model: ${model} for question with general sources`);
-
-    const response = await openai.chat.completions.create({
-      model,
+    
+    // Always use the GPT-4 endpoint
+    const endpoint = process.env.AZURE_GPT4_ENDPOINT || '';
+    const apiKey = process.env.AZURE_GPT4_API_KEY || process.env.AZURE_OPENAI_API_KEY || '';
+    const apiVersion = process.env.AZURE_GPT4_API_VERSION || '2025-01-01-preview';
+    
+    // Remove trailing slash from endpoint if present
+    const baseUrl = endpoint.endsWith('/') ? endpoint.slice(0, -1) : endpoint;
+    
+    // Format the URL according to Azure OpenAI requirements for chat completions
+    const url = `${baseUrl}/openai/deployments/${model}/chat/completions?api-version=${apiVersion}`;
+    
+    console.log(`Calling Azure OpenAI chat completions endpoint: ${url}`);
+    
+    // Prepare the request body
+    const requestBody = {
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: question }
       ],
       temperature: 0.7,
       max_tokens: 500
+    };
+    
+    // Make a direct POST request to the Azure API
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': apiKey
+      },
+      body: JSON.stringify(requestBody)
     });
-
-    return response.choices[0].message.content || "I'm sorry, I couldn't generate an answer.";
-  } catch (error: unknown) {
-    console.error('Error generating answer with OpenAI:', error);
     
-    // Cast error to OpenAIError type to access its properties
-    const apiError = error as OpenAIError;
-    
-    // If the error is due to the model (e.g., token limit), fallback to a simpler model
-    if (apiError.response?.status === 400 && apiError.response?.data?.error?.code === 'context_length_exceeded') {
-      console.log('Falling back to a simpler model due to context length limitations');
-      return generateAnswerFromGeneralSources(question, generalSources, COMPLETION_MODELS.FAST);
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Azure OpenAI API error:', errorData);
+      throw new Error(`Azure OpenAI API error: ${response.status} ${response.statusText}`);
     }
     
+    const data = await response.json();
+    return data.choices[0].message.content || "I'm sorry, I couldn't generate an answer.";
+  } catch (error: unknown) {
+    console.error('Error generating answer with OpenAI:', error);
     throw new Error('Failed to generate answer with OpenAI');
   }
 }
