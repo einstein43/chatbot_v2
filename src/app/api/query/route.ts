@@ -24,8 +24,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-// Define confidence threshold for using OpenAI
-const CONFIDENCE_THRESHOLD = 0.90;
+// Define confidence threshold
+const CONFIDENCE_THRESHOLD = 0.80;
 
 /**
  * Handle preflight OPTIONS request for CORS
@@ -76,76 +76,35 @@ export async function POST(request: NextRequest) {
     let response;
     
     if (!similarQuestions || similarQuestions.length === 0) {
-      // No matches found, let's use general sources
-      console.log('No QA matches found, using general sources for response');
-      
-      if (!generalSources || generalSources.length === 0) {
-        // No general sources either, generate a generic response
-        response = { 
-          question,
-          answer: "I'm sorry, I don't have enough information to answer that question accurately.",
-          confidence: 0,
-          similarQuestions: [],
-          source: 'no_sources'
-        };
-      } else {
-        // Generate answer using the general sources
-        console.log(`Found ${generalSources.length} general sources, generating answer with OpenAI`);
-        const generatedAnswer = await generateAnswerFromGeneralSources(question, generalSources);
-        
-        response = { 
-          question,
-          answer: generatedAnswer,
-          confidence: 0,
-          similarQuestions: [],
-          source: 'general_sources'
-        };
-      }
+      // No matches found, return Dutch message
+      response = { 
+        question,
+        answer: "dat antwoord weet ik niet.",
+        confidence: 0,
+        similarQuestions: [],
+        source: 'no_sources'
+      };
     } else {
       // Get the best match
       const bestMatch = similarQuestions[0] as PineconeMatch;
       
-      // If confidence is below threshold, use OpenAI with general sources
+      // If confidence is below threshold, return Dutch message
       if (bestMatch.score < CONFIDENCE_THRESHOLD) {
-        console.log(`Best match confidence (${bestMatch.score}) below threshold (${CONFIDENCE_THRESHOLD}), using general sources if available`);
+        console.log(`Best match confidence (${bestMatch.score}) below threshold (${CONFIDENCE_THRESHOLD}), returning Dutch message`);
         
-        if (!generalSources || generalSources.length === 0) {
-          // No general sources found, fall back to just using similar questions
-          console.log('No general sources found, generating answer based on similar questions');
-          const generatedAnswer = await generateAnswer(question, similarQuestions);
-          
-          response = {
-            question,
-            answer: generatedAnswer,
-            confidence: bestMatch.score,
-            similarQuestions: similarQuestions.map(match => {
-              const typedMatch = match as PineconeMatch;
-              return {
-                question: typedMatch.metadata.question,
-                score: typedMatch.score
-              };
-            }),
-            source: 'similar_questions'
-          };
-        } else {
-          // Generate answer using general sources
-          console.log(`Found ${generalSources.length} general sources, generating answer with OpenAI`);
-          const generatedAnswer = await generateAnswerFromGeneralSources(question, generalSources);
-          
-          response = {
-            question,
-            answer: generatedAnswer,
-            confidence: bestMatch.score,
-            similarQuestions: similarQuestions.map(match => {
-              const typedMatch = match as PineconeMatch;
-              return {
-                question: typedMatch.metadata.question,
-                score: typedMatch.score
-              };
-            }),
-            source: 'general_sources'
-          };
-        }
+        response = {
+          question,
+          answer: "dat antwoord weet ik niet.",
+          confidence: bestMatch.score,
+          similarQuestions: similarQuestions.map(match => {
+            const typedMatch = match as PineconeMatch;
+            return {
+              question: typedMatch.metadata.question,
+              score: typedMatch.score
+            };
+          }),
+          source: 'low_confidence'
+        };
       } else {
         // Use the best match's answer since confidence is high enough
         const metadata = bestMatch.metadata;

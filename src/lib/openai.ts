@@ -25,7 +25,7 @@ export const EMBEDDING_MODELS = {
 
 export const COMPLETION_MODELS = {
   // All models use gpt-4o-mini
-  FAST: process.env.AZURE_COMPLETION_DEPLOYMENT_STANDARD || 'gpt-4o-minio-mini',
+  FAST: process.env.AZURE_COMPLETION_DEPLOYMENT_STANDARD || 'gpt-4o-mini',
   STANDARD: process.env.AZURE_COMPLETION_DEPLOYMENT_STANDARD || 'gpt-4o-mini',
   PRECISE: process.env.AZURE_COMPLETION_DEPLOYMENT_PRECISE || 'gpt-4o-mini'
 };
